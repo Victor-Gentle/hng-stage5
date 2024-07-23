@@ -1,5 +1,7 @@
 #!/bin/bash
 
+LOG_FILE="/var/log/devopsfetch.log"
+
 get_active_ports() {
     echo -e "Port\tService"
     sudo netstat -tuln | awk 'NR>2 {print $4 "\t" $6}' | awk -F ":" '{print $NF "\t" $2}' | column -t
@@ -57,35 +59,50 @@ get_user_detail() {
 }
 
 display_activities_in_time_range() {
-    local start_time=$1
-    local end_time=$2
-
-    echo -e "Displaying activities from $start_time to $end_time:\n"
-
-    sudo journalctl --since="$start_time" --until="$end_time" --no-pager | \
-    awk '{print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20}' | \
-    column -t
+    local since=$1
+    local until=$2
+    echo "Activities from $since to $until:"
+    sudo journalctl --since="$since" --until="$until" | column -t
 }
 
 monitor_activities() {
     while true; do
-        echo "Monitor log at $(date):" >> /var/log/devopsfetch.log
-        netstat -tuln >> /var/log/devopsfetch.log
-        echo "" >> /var/log/devopsfetch.log
+        {
+            echo "Monitor log at $(date):"
+            echo "Active Ports and Services:"
+            sudo netstat -tuln | awk 'NR>2 {print $4 "\t" $6}' | awk -F ":" '{print $NF "\t" $2}' | column -t
+            echo
+            echo "Docker Images:"
+            sudo docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.CreatedSince}}\t{{.Size}}"
+            echo
+            echo "Docker Containers:"
+            sudo docker ps -a --format "table {{.ID}}\t{{.Image}}\t{{.Command}}\t{{.RunningFor}}\t{{.Status}}\t{{.Ports}}\t{{.Names}}"
+            echo
+            echo "Nginx Domains and Ports:"
+            for site in /etc/nginx/sites-available/*; do
+                domain=$(grep -oP '(?<=server_name ).*(?=;)' $site)
+                port=$(grep -oP '(?<=listen ).*(?=;)' $site)
+                echo -e "$domain\t$port"
+            done | column -t
+            echo
+            echo "Users and Last Login Times:"
+            last -a | awk '{print $1 "\t" $4, $5, $6, $7, $8, $9}' | column -t
+            echo
+        } >> "$LOG_FILE"
         sleep 300
     done
 }
 
 show_help() {
     cat << EOF
-Usage: devopsfetch.sh [options]
+Usage: devopsfetch [options]
 
 Options:
     -p, --port <port_number>       Display information about a specific port
     -d, --docker [container_name]  List all Docker images and containers, or information about a specific container
     -n, --nginx [domain]           List all Nginx domains and ports, or information about a specific domain
     -u, --users [username]         List all users and their last login times, or information about a specific user
-    -t, --time <start_time> <end_time>  Display activities within a specified time range (format: "YYYY-MM-DD HH:MM:SS")
+    -t, --time <since> <until>     Display activities within a specified time range
     --monitor                      Run in continuous monitoring mode
     -h, --help                     Show this help message
 EOF
@@ -117,12 +134,10 @@ case "$1" in
         fi
         ;;
     -t|--time)
-        if [ -z "$2" ] || [ -z "$3" ]; then
-            echo "Error: You must specify both start and end time."
+        if [ -z "$3" ]; then
             show_help
-            exit 1
         else
-            display_activities_in_time_range "$2" "$3"
+            display_activities_in_time_range $2 $3
         fi
         ;;
     --monitor)

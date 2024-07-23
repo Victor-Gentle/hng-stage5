@@ -103,50 +103,50 @@ Options:
     -n, --nginx [domain]           List all Nginx domains and ports, or information about a specific domain
     -u, --users [username]         List all users and their last login times, or information about a specific user
     -t, --time <since> <until>     Display activities within a specified time range
-    --monitor                      Run in continuous monitoring mode
     -h, --help                     Show this help message
 EOF
 }
 
-case "$1" in
-    -p|--port)
-        get_port_info $2
-        ;;
-    -d|--docker)
-        if [ -z "$2" ]; then
-            get_docker_info
-        else
-            get_container_info $2
-        fi
-        ;;
-    -n|--nginx)
-        if [ -z "$2" ]; then
-            get_nginx_info
-        else
-            get_nginx_domain_info $2
-        fi
-        ;;
-    -u|--users)
-        if [ -z "$2" ]; then
-            get_user_info
-        else
-            get_user_detail $2
-        fi
-        ;;
-    -t|--time)
-        if [ -z "$3" ]; then
+if [[ $# -eq 0 ]]; then
+    monitor_activities
+else
+    case "$1" in
+        -p|--port)
+            get_port_info $2
+            ;;
+        -d|--docker)
+            if [ -z "$2" ]; then
+                get_docker_info
+            else
+                get_container_info $2
+            fi
+            ;;
+        -n|--nginx)
+            if [ -z "$2" ]; then
+                get_nginx_info
+            else
+                get_nginx_domain_info $2
+            fi
+            ;;
+        -u|--users)
+            if [ -z "$2" ]; then
+                get_user_info
+            else
+                get_user_detail $2
+            fi
+            ;;
+        -t|--time)
+            if [ -z "$3" ]; then
+                show_help
+            else
+                display_activities_in_time_range $2 $3
+            fi
+            ;;
+        -h|--help)
             show_help
-        else
-            display_activities_in_time_range $2 $3
-        fi
-        ;;
-    --monitor)
-        monitor_activities
-        ;;
-    -h|--help)
-        show_help
-        ;;
-    *)
-        show_help
-        ;;
-esac
+            ;;
+        *)
+            show_help
+            ;;
+    esac
+fi
